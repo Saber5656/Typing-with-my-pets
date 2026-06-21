@@ -32,6 +32,34 @@ final class TypingEngineTests: XCTestCase {
         XCTAssertEqual(Int(metrics.accuracy.rounded()), 50)
     }
 
+    func testRejectsLengthGrowingEditBeforeInputEnd() {
+        var session = TypingSession(exercise: exercise, now: 0)
+
+        _ = session.update(rawInput: "ab", now: 1)
+        let event = session.update(rawInput: "axb", now: 2)
+        let metrics = session.metrics(at: 2)
+
+        XCTAssertEqual(event, .idle)
+        XCTAssertEqual(session.input, "ab")
+        XCTAssertEqual(metrics.liveErrors, 0)
+        XCTAssertEqual(metrics.totalTyped, 2)
+        XCTAssertEqual(metrics.totalErrors, 0)
+    }
+
+    func testRejectsSelectionReplacementWithoutDelete() {
+        var session = TypingSession(exercise: exercise, now: 0)
+
+        _ = session.update(rawInput: "ax", now: 1)
+        let event = session.update(rawInput: "ab", now: 2)
+        let metrics = session.metrics(at: 2)
+
+        XCTAssertEqual(event, .idle)
+        XCTAssertEqual(session.input, "ax")
+        XCTAssertEqual(metrics.liveErrors, 1)
+        XCTAssertEqual(metrics.totalTyped, 2)
+        XCTAssertEqual(metrics.totalErrors, 1)
+    }
+
     func testCompletion() {
         var session = TypingSession(exercise: exercise, now: 0)
 

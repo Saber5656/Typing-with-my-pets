@@ -117,10 +117,13 @@ private final class CodexPetWindowTracker {
     }
 
     private static func convertCGWindowFrame(_ cgFrame: CGRect) -> CGRect {
-        let maxScreenY = NSScreen.screens.map(\.frame.maxY).max() ?? NSScreen.main?.frame.maxY ?? 0
+        let mainDisplayHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
+            ?? NSScreen.main?.frame.height
+            ?? NSScreen.screens.first?.frame.height
+            ?? 0
         return CGRect(
             x: cgFrame.minX,
-            y: maxScreenY - cgFrame.minY - cgFrame.height,
+            y: mainDisplayHeight - cgFrame.minY - cgFrame.height,
             width: cgFrame.width,
             height: cgFrame.height
         )
@@ -170,8 +173,10 @@ private final class CodexPetWindowTracker {
 }
 
 private final class OverlayWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    var acceptsKeyboardFocus = true
+
+    override var canBecomeKey: Bool { acceptsKeyboardFocus }
+    override var canBecomeMain: Bool { acceptsKeyboardFocus }
 }
 
 private final class TransparentTypingTextView: NSTextView {
@@ -442,11 +447,15 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         session.update(rawInput: inputPanel.textView.string)
-        if inputPanel.textView.string != session.input {
-            inputPanel.textView.string = session.input
-            inputPanel.textView.setSelectedRange(NSRange(location: session.input.count, length: 0))
-        }
+        syncTextViewToSessionInput()
         updateStats()
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard chatVisibility == .open else {
+            return
+        }
+        moveInputCaretToEnd()
     }
 
     @objc private func restart() {
@@ -464,13 +473,20 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     private func setChatVisible(_ visible: Bool) {
         chatVisibility = visible ? .open : .closed
         inputPanel.visibility = chatVisibility
+        inputPanel.textView.isEditable = visible
 
         if visible {
+            (window as? OverlayWindow)?.acceptsKeyboardFocus = true
             updateOverlayPosition()
             window?.orderFrontRegardless()
+            window?.makeKey()
             window?.makeFirstResponder(inputPanel.textView)
+            moveInputCaretToEnd()
             NSApp.activate(ignoringOtherApps: true)
         } else {
+            window?.makeFirstResponder(nil)
+            (window as? OverlayWindow)?.acceptsKeyboardFocus = false
+            window?.resignKey()
             updateOverlayPosition()
             window?.orderFrontRegardless()
         }
@@ -497,7 +513,22 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
         inputPanel.targetLabel.stringValue = exercises[exerciseIndex].text
         inputPanel.textView.string = ""
         inputPanel.textView.isEditable = true
+        moveInputCaretToEnd()
         updateStats()
+    }
+
+    private func syncTextViewToSessionInput() {
+        if inputPanel.textView.string != session.input {
+            inputPanel.textView.string = session.input
+        }
+        moveInputCaretToEnd()
+    }
+
+    private func moveInputCaretToEnd() {
+        let endRange = NSRange(location: inputPanel.textView.string.count, length: 0)
+        if inputPanel.textView.selectedRange() != endRange {
+            inputPanel.textView.setSelectedRange(endRange)
+        }
     }
 
     private func updateStats() {

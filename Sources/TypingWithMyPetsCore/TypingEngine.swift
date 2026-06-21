@@ -75,26 +75,18 @@ public struct TypingSession: Equatable, Sendable {
     @discardableResult
     public mutating func update(rawInput: String, now: TimeInterval = Date().timeIntervalSince1970) -> TypingEvent {
         let target = Array(exercise.text)
-        let nextInput = String(Array(rawInput).prefix(target.count))
-        let previous = Array(input)
+        let proposedInput = String(Array(rawInput).prefix(target.count))
+        let previousInput = input
+        let previous = Array(previousInput)
+        let acceptsAppend = proposedInput.hasPrefix(previousInput)
+        let acceptsDelete = previousInput.hasPrefix(proposedInput)
+        let nextInput = acceptsAppend || acceptsDelete ? proposedInput : previousInput
         let next = Array(nextInput)
         var event: TypingEvent = .idle
 
         if next.count > previous.count {
             event = .correct
             for index in previous.count..<next.count {
-                totalTyped += 1
-                if index < target.count, next[index] == target[index] {
-                    correctStreak += 1
-                } else {
-                    totalErrors += 1
-                    correctStreak = 0
-                    event = .error
-                }
-            }
-        } else if next.count == previous.count, next != previous {
-            event = .correct
-            for index in 0..<next.count where next[index] != previous[index] {
                 totalTyped += 1
                 if index < target.count, next[index] == target[index] {
                     correctStreak += 1
