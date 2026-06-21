@@ -77,4 +77,11 @@ final class TypingEngineTests: XCTestCase {
         XCTAssertEqual(states, [.correct, .incorrect, .current, .pending])
     }
 
+    func testDefaultExercisesProvideVariety() {
+        let ids = Exercise.defaults.map(\.id)
+
+        XCTAssertGreaterThanOrEqual(Exercise.defaults.count, 20)
+        XCTAssertEqual(Set(ids).count, ids.count)
+    }
+
 }

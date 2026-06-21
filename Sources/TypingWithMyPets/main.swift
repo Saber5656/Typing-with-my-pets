@@ -20,9 +20,10 @@ private enum BubbleTailSide {
 
 private struct OverlayMetrics {
     let openSize = CGSize(width: 408, height: 160)
-    let tailDepth: CGFloat = 18
+    let tailDepth: CGFloat = 24
     let tailCenterRatioFromBottom: CGFloat = 0.25
-    let gap: CGFloat = 0
+    let gapWhenPanelLeftOfPet: CGFloat = -28
+    let gapWhenPanelRightOfPet: CGFloat = 42
     let petMouthYRatio: CGFloat = 0.62
 
     var tailCenterY: CGFloat {
@@ -279,7 +280,7 @@ private final class InputPanelView: NSView {
 
     private let scrollView = NSScrollView()
     private let tailDepth: CGFloat
-    private let tailHalfHeight: CGFloat = 13
+    private let tailHalfHeight: CGFloat = 18
 
     init(frame frameRect: NSRect, tailDepth: CGFloat, tailCenterY: CGFloat) {
         self.tailDepth = tailDepth
@@ -348,10 +349,10 @@ private final class InputPanelView: NSView {
             return
         }
 
-        let radius: CGFloat = 16
+        let radius: CGFloat = 28
         let bodyRect = bubbleBodyRect.insetBy(dx: 1, dy: 1)
-        let fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.2)
-        let strokeColor = NSColor.labelColor.withAlphaComponent(0.3)
+        let fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.24)
+        let strokeColor = NSColor.labelColor.withAlphaComponent(0.34)
         let bodyPath = NSBezierPath(roundedRect: bodyRect, xRadius: radius, yRadius: radius)
         let tailY = min(max(tailCenterY, bodyRect.minY + radius + tailHalfHeight), bodyRect.maxY - radius - tailHalfHeight)
         let tailPath = NSBezierPath()
@@ -360,28 +361,70 @@ private final class InputPanelView: NSView {
         switch tailSide {
         case .left:
             let tip = NSPoint(x: bounds.minX + 1, y: tailY)
-            let upper = NSPoint(x: bodyRect.minX + 1, y: tailY + tailHalfHeight)
-            let lower = NSPoint(x: bodyRect.minX + 1, y: tailY - tailHalfHeight)
+            let upper = NSPoint(x: bodyRect.minX + 2, y: tailY + tailHalfHeight)
+            let lower = NSPoint(x: bodyRect.minX + 2, y: tailY - tailHalfHeight)
             tailPath.move(to: tip)
-            tailPath.line(to: upper)
-            tailPath.line(to: lower)
+            tailPath.curve(
+                to: upper,
+                controlPoint1: NSPoint(x: tip.x + tailDepth * 0.28, y: tailY + tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: upper.x - tailDepth * 0.28, y: upper.y - tailHalfHeight * 0.08)
+            )
+            tailPath.curve(
+                to: lower,
+                controlPoint1: NSPoint(x: upper.x - tailDepth * 0.38, y: tailY + tailHalfHeight * 0.15),
+                controlPoint2: NSPoint(x: lower.x - tailDepth * 0.38, y: tailY - tailHalfHeight * 0.15)
+            )
+            tailPath.curve(
+                to: tip,
+                controlPoint1: NSPoint(x: lower.x - tailDepth * 0.28, y: lower.y + tailHalfHeight * 0.08),
+                controlPoint2: NSPoint(x: tip.x + tailDepth * 0.28, y: tailY - tailHalfHeight * 0.22)
+            )
             tailPath.close()
             tailStrokePath.move(to: tip)
-            tailStrokePath.line(to: upper)
+            tailStrokePath.curve(
+                to: upper,
+                controlPoint1: NSPoint(x: tip.x + tailDepth * 0.28, y: tailY + tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: upper.x - tailDepth * 0.28, y: upper.y - tailHalfHeight * 0.08)
+            )
             tailStrokePath.move(to: tip)
-            tailStrokePath.line(to: lower)
+            tailStrokePath.curve(
+                to: lower,
+                controlPoint1: NSPoint(x: tip.x + tailDepth * 0.28, y: tailY - tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: lower.x - tailDepth * 0.28, y: lower.y + tailHalfHeight * 0.08)
+            )
         case .right:
             let tip = NSPoint(x: bounds.maxX - 1, y: tailY)
-            let upper = NSPoint(x: bodyRect.maxX - 1, y: tailY + tailHalfHeight)
-            let lower = NSPoint(x: bodyRect.maxX - 1, y: tailY - tailHalfHeight)
+            let upper = NSPoint(x: bodyRect.maxX - 2, y: tailY + tailHalfHeight)
+            let lower = NSPoint(x: bodyRect.maxX - 2, y: tailY - tailHalfHeight)
             tailPath.move(to: tip)
-            tailPath.line(to: upper)
-            tailPath.line(to: lower)
+            tailPath.curve(
+                to: upper,
+                controlPoint1: NSPoint(x: tip.x - tailDepth * 0.28, y: tailY + tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: upper.x + tailDepth * 0.28, y: upper.y - tailHalfHeight * 0.08)
+            )
+            tailPath.curve(
+                to: lower,
+                controlPoint1: NSPoint(x: upper.x + tailDepth * 0.38, y: tailY + tailHalfHeight * 0.15),
+                controlPoint2: NSPoint(x: lower.x + tailDepth * 0.38, y: tailY - tailHalfHeight * 0.15)
+            )
+            tailPath.curve(
+                to: tip,
+                controlPoint1: NSPoint(x: lower.x + tailDepth * 0.28, y: lower.y + tailHalfHeight * 0.08),
+                controlPoint2: NSPoint(x: tip.x - tailDepth * 0.28, y: tailY - tailHalfHeight * 0.22)
+            )
             tailPath.close()
             tailStrokePath.move(to: tip)
-            tailStrokePath.line(to: upper)
+            tailStrokePath.curve(
+                to: upper,
+                controlPoint1: NSPoint(x: tip.x - tailDepth * 0.28, y: tailY + tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: upper.x + tailDepth * 0.28, y: upper.y - tailHalfHeight * 0.08)
+            )
             tailStrokePath.move(to: tip)
-            tailStrokePath.line(to: lower)
+            tailStrokePath.curve(
+                to: lower,
+                controlPoint1: NSPoint(x: tip.x - tailDepth * 0.28, y: tailY - tailHalfHeight * 0.22),
+                controlPoint2: NSPoint(x: lower.x + tailDepth * 0.28, y: lower.y + tailHalfHeight * 0.08)
+            )
         }
 
         fillColor.setFill()
@@ -499,7 +542,7 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     private weak var window: NSWindow?
     private var updateTimer: Timer?
     private var petClickMonitor: Any?
-    private var exercises = Exercise.defaults
+    private var exercises = Exercise.defaults.shuffled()
     private var exerciseIndex = 0
     private var session: TypingSession
     private var chatVisibility: ChatVisibility = .open
@@ -769,9 +812,9 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
         let x: CGFloat
         switch placement {
         case .rightOfPet:
-            x = petFrame.maxX + metrics.gap
+            x = petFrame.maxX + metrics.gapWhenPanelRightOfPet
         case .leftOfPet:
-            x = petFrame.minX - metrics.gap - size.width
+            x = petFrame.minX - metrics.gapWhenPanelLeftOfPet - size.width
         }
 
         let mouthY = petFrame.minY + petFrame.height * metrics.petMouthYRatio

@@ -30,4 +30,8 @@ expect(appendOnlySession.metrics(at: 2).totalErrors == 0, "rejected edit should 
 let states = feedback(for: "abcd", input: "ax").map(\.state)
 expect(states == [.correct, .incorrect, .current, .pending], "feedback states should match")
 
+let defaultExerciseIDs = Exercise.defaults.map(\.id)
+expect(Exercise.defaults.count >= 20, "default exercises should provide enough variety")
+expect(Set(defaultExerciseIDs).count == defaultExerciseIDs.count, "default exercise ids should be unique")
+
 print("PASS: TypingWithMyPetsCore smoke tests")
