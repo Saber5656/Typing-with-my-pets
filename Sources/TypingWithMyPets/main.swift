@@ -446,13 +446,18 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     }
 
     func textDidChange(_ notification: Notification) {
+        guard !inputPanel.textView.hasMarkedText() else {
+            updateStats()
+            return
+        }
+
         session.update(rawInput: inputPanel.textView.string)
         syncTextViewToSessionInput()
         updateStats()
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
-        guard chatVisibility == .open else {
+        guard chatVisibility == .open, !inputPanel.textView.hasMarkedText() else {
             return
         }
         moveInputCaretToEnd()
@@ -518,6 +523,10 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     }
 
     private func syncTextViewToSessionInput() {
+        guard !inputPanel.textView.hasMarkedText() else {
+            return
+        }
+
         if inputPanel.textView.string != session.input {
             inputPanel.textView.string = session.input
         }
@@ -525,6 +534,10 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     }
 
     private func moveInputCaretToEnd() {
+        guard !inputPanel.textView.hasMarkedText() else {
+            return
+        }
+
         let endRange = NSRange(location: inputPanel.textView.string.count, length: 0)
         if inputPanel.textView.selectedRange() != endRange {
             inputPanel.textView.setSelectedRange(endRange)
