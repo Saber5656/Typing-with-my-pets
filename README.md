@@ -45,9 +45,8 @@ Test core logic:
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) before cutting or downloading a release.
 
-The current `v0.1.0` release plan is a developer preview. The app bundle is
-unsigned and not notarized, so macOS may show a Gatekeeper warning on first
-launch.
+The current `v1.0.0` release is unsigned and not notarized, so macOS may show a
+Gatekeeper warning on first launch.
 
 ## Controls
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No unreleased changes.
+
+## v1.0.0 - 2026-06-28
+
 - Adds a conversation mode toggle next to typing practice mode.
 - Uses Apple FoundationModels for local conversation on supported macOS versions, with no cloud or rule-based fallback chat.
 - Adds EventKit Reminders support for explicit one-time reminder requests with a clear future date and time.
@@ -10,6 +14,7 @@
 - Adds confirmation-gated Codex App Server handoff for coding, research, repository, app opening, and Computer Use style requests through the local Codex CLI.
 - Adds Codex handoff workdir override via `TWMP_CODEX_WORKDIR`.
 - Keeps app launching and macOS operation out of the pet's direct responsibility; Codex owns delegated app/GUI work.
+- Keeps the app bundle unsigned and non-notarized.
 
 ## v0.1.0
 
