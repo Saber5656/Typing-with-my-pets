@@ -70,6 +70,14 @@ expect(
     ConversationPolicy.unsupportedRequest(in: "この映画をレビューして") == nil,
     "ordinary review conversation should not be forced into Codex handoff"
 )
+expect(
+    ConversationPolicy.unsupportedRequest(in: "リマインダーの使い方を教えて") == nil,
+    "reminder questions should not be forced into action flow"
+)
+expect(
+    ConversationPolicy.unsupportedRequest(in: "通知を設定する方法を教えて") == nil,
+    "notification setup questions should not be forced into action flow"
+)
 
 var reminderCalendar = Calendar(identifier: .gregorian)
 reminderCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -100,6 +108,11 @@ expect(
         == .needsClarification("午前か午後も教えてね。"),
     "bare 1-12 hour reminder requests should ask for AM/PM clarification"
 )
+expect(
+    ReminderParser.parse("明日10:30にリマインドして", now: reminderNow, calendar: reminderCalendar)
+        == .needsClarification("午前か午後も教えてね。"),
+    "bare 1-12 colon reminder requests should ask for AM/PM clarification"
+)
 let mergedReminderInput = ReminderParser.mergeClarification(
     pendingInput: "明日10時に牛乳を買うのをリマインドして",
     reply: "午後"
@@ -129,9 +142,52 @@ if case .ready(let colonPMReminder) = colonPMResult {
 } else {
     expect(false, "colon PM reminder should parse")
 }
+let nightReminderResult = ReminderParser.parse(
+    "明日夜8時に牛乳を買うのをリマインドして",
+    now: reminderNow,
+    calendar: reminderCalendar
+)
+if case .ready(let nightReminder) = nightReminderResult {
+    let components = reminderCalendar.dateComponents([.hour], from: nightReminder.dueDate)
+    expect(components.hour == 20, "night marker should parse as PM")
+} else {
+    expect(false, "night marker reminder should parse")
+}
+expect(
+    ReminderParser.parse("2026/2/31 10:00にリマインドして", now: reminderNow, calendar: reminderCalendar)
+        == .needsClarification("いつのリマインダーにする？日付と時刻を入れてね。"),
+    "invalid dates should ask for clarification"
+)
+let carrotReminder = ReminderParser.parse(
+    "明日午後3時ににんじんを買うのをリマインドして",
+    now: reminderNow,
+    calendar: reminderCalendar
+)
+if case .ready(let carrot) = carrotReminder {
+    expect(carrot.title.contains("にんじん"), "reminder title should preserve Japanese characters")
+} else {
+    expect(false, "Japanese title reminder should parse")
+}
+expect(
+    ReminderParser.parse("リマインダーの使い方を教えて", now: reminderNow, calendar: reminderCalendar) == .notReminder,
+    "reminder questions should stay in conversation"
+)
+expect(
+    ReminderParser.parse("通知を設定する方法を教えて", now: reminderNow, calendar: reminderCalendar) == .notReminder,
+    "notification setup questions should stay in conversation"
+)
+expect(
+    ReminderParser.parse("3時にアラームをかけて", now: reminderNow, calendar: reminderCalendar)
+        == .clockAlarmUnsupported("Clockのアラームはまだ作れないよ。リマインダーなら日付と時刻つきで作れるよ。"),
+    "explicit alarm creation should remain unsupported"
+)
 expect(
     ReminderParser.isUndoRequest("取り消して"),
     "reminder undo wording should be detected"
+)
+expect(
+    !ReminderParser.isUndoRequest("取り消し線について教えて"),
+    "ordinary cancellation-related words should not undo reminders"
 )
 expect(
     ReminderParser.isCancellationReply("キャンセル"),

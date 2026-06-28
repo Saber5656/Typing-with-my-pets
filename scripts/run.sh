@@ -3,10 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 app="$(./scripts/build.sh)"
-export TWMP_CODEX_WORKDIR="$PWD"
+launchctl unsetenv TWMP_CODEX_WORKDIR 2>/dev/null || true
 if [ "$#" -gt 0 ]; then
-  "$app/Contents/MacOS/TypingWithMyPets" "$@"
+  TWMP_CODEX_WORKDIR="$PWD" "$app/Contents/MacOS/TypingWithMyPets" "$@"
 else
-  launchctl setenv TWMP_CODEX_WORKDIR "$TWMP_CODEX_WORKDIR" 2>/dev/null || true
-  open -n "$app"
+  TWMP_CODEX_WORKDIR="$PWD" "$app/Contents/MacOS/TypingWithMyPets" >/dev/null 2>&1 &
 fi

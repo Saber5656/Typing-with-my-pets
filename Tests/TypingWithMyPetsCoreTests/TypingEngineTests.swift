@@ -127,6 +127,9 @@ final class ConversationEngineTests: XCTestCase {
         XCTAssertEqual(ConversationPolicy.unsupportedRequest(in: "Obsidianに入力して"), .codexHandoff)
         XCTAssertEqual(ConversationPolicy.unsupportedRequest(in: "このPRをレビューして"), .codexHandoff)
         XCTAssertEqual(ConversationPolicy.unsupportedRequest(in: "Macを再起動して"), .osOperation)
+        XCTAssertNil(ConversationPolicy.unsupportedRequest(in: "リマインダーの使い方を教えて"))
+        XCTAssertNil(ConversationPolicy.unsupportedRequest(in: "アラームとリマインダーの違いは？"))
+        XCTAssertNil(ConversationPolicy.unsupportedRequest(in: "通知を設定する方法を教えて"))
         XCTAssertNil(ConversationPolicy.unsupportedRequest(in: "この映画をレビューして"))
     }
 
@@ -195,9 +198,14 @@ final class ConversationEngineTests: XCTestCase {
             ReminderParser.parse("明日10時にリマインドして", now: now, calendar: calendar),
             .needsClarification("午前か午後も教えてね。")
         )
+        XCTAssertEqual(
+            ReminderParser.parse("明日10:30にリマインドして", now: now, calendar: calendar),
+            .needsClarification("午前か午後も教えてね。")
+        )
         XCTAssertTrue(ReminderParser.isUndoRequest("取り消して"))
         XCTAssertTrue(ReminderParser.isCancellationReply("キャンセル"))
         XCTAssertFalse(ReminderParser.isUndoRequest("キャンセル"))
+        XCTAssertFalse(ReminderParser.isUndoRequest("取り消し線について教えて"))
     }
 
     func testReminderClarificationMergesIntoPendingRequest() throws {
@@ -251,6 +259,108 @@ final class ConversationEngineTests: XCTestCase {
         let components = calendar.dateComponents([.hour, .minute], from: reminder.dueDate)
         XCTAssertEqual(components.hour, 22)
         XCTAssertEqual(components.minute, 30)
+    }
+
+    func testNaturalLanguageTimeMarkersParse() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 27,
+            hour: 9,
+            minute: 0
+        )))
+
+        let nightResult = ReminderParser.parse(
+            "明日夜8時に牛乳を買うのをリマインドして",
+            now: now,
+            calendar: calendar
+        )
+        let morningResult = ReminderParser.parse(
+            "明日朝8時に牛乳を買うのをリマインドして",
+            now: now,
+            calendar: calendar
+        )
+
+        guard case .ready(let nightReminder) = nightResult,
+              case .ready(let morningReminder) = morningResult else {
+            XCTFail("Expected reminders with natural language time markers")
+            return
+        }
+
+        XCTAssertEqual(calendar.component(.hour, from: nightReminder.dueDate), 20)
+        XCTAssertEqual(calendar.component(.hour, from: morningReminder.dueDate), 8)
+    }
+
+    func testInvalidReminderDatesAskForClarification() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 9,
+            minute: 0
+        )))
+
+        XCTAssertEqual(
+            ReminderParser.parse("2026/2/31 10:00にリマインドして", now: now, calendar: calendar),
+            .needsClarification("いつのリマインダーにする？日付と時刻を入れてね。")
+        )
+    }
+
+    func testReminderTitlePreservesJapaneseCharacters() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 27,
+            hour: 9,
+            minute: 0
+        )))
+
+        let result = ReminderParser.parse(
+            "明日午後3時ににんじんを買うのをリマインドして",
+            now: now,
+            calendar: calendar
+        )
+
+        guard case .ready(let reminder) = result else {
+            XCTFail("Expected a ready reminder request")
+            return
+        }
+        XCTAssertTrue(reminder.title.contains("にんじん"))
+    }
+
+    func testReminderQuestionsStayInConversation() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 27,
+            hour: 9,
+            minute: 0
+        )))
+
+        XCTAssertEqual(
+            ReminderParser.parse("アラームとリマインダーの違いは？", now: now, calendar: calendar),
+            .notReminder
+        )
+        XCTAssertEqual(
+            ReminderParser.parse("リマインダーの使い方を教えて", now: now, calendar: calendar),
+            .notReminder
+        )
+        XCTAssertEqual(
+            ReminderParser.parse("通知を設定する方法を教えて", now: now, calendar: calendar),
+            .notReminder
+        )
+        XCTAssertEqual(
+            ReminderParser.parse("3時にアラームをかけて", now: now, calendar: calendar),
+            .clockAlarmUnsupported("Clockのアラームはまだ作れないよ。リマインダーなら日付と時刻つきで作れるよ。")
+        )
     }
 
     func testCodexHandoffPlanKeepsImmediateRequest() {

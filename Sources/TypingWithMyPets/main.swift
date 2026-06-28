@@ -454,10 +454,15 @@ private final class CodexAppServerHandoffExecutor: CodexHandoffExecuting, @unche
 
                         let logURL = FileManager.default.temporaryDirectory
                             .appendingPathComponent("typing-with-my-pets-codex-handoff-\(UUID().uuidString).log")
-                        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+                        FileManager.default.createFile(
+                            atPath: logURL.path,
+                            contents: nil,
+                            attributes: [.posixPermissions: 0o600]
+                        )
                         let logHandle = try FileHandle(forWritingTo: logURL)
                         defer {
                             try? logHandle.close()
+                            try? FileManager.default.removeItem(at: logURL)
                             processBox.clear()
                         }
 
@@ -1170,8 +1175,7 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
         case .typing:
             inputPanel.textView.isEditable = submittedAt == nil
         case .conversation:
-            inputPanel.textView.isEditable = conversationProvider.unavailableReason == nil
-                && !isWaitingForConversation
+            inputPanel.textView.isEditable = !isWaitingForConversation
         }
     }
 
@@ -1231,7 +1235,6 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
 
     private func sendConversationMessage() {
         guard !isWaitingForConversation,
-              conversationProvider.unavailableReason == nil,
               !inputPanel.textView.hasMarkedText() else {
             return
         }
@@ -1290,6 +1293,11 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
 
         if let unsupportedRequest = ConversationPolicy.unsupportedRequest(in: userMessage) {
             displayConversationReply(userMessage: userMessage, reply: unsupportedRequest.reply)
+            return
+        }
+
+        if let reason = conversationProvider.unavailableReason {
+            displayConversationReply(userMessage: userMessage, reply: reason)
             return
         }
 
@@ -1390,6 +1398,9 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
                 let identifier = try await self.reminderManager.createReminder(reminderRequest)
                 let reply = "リマインダーを設定したよ。\n\(self.formattedReminderDate(reminderRequest.dueDate))"
                 await MainActor.run {
+                    guard self.isCurrentConversationRequest(requestID) else {
+                        return
+                    }
                     self.lastReminderIdentifier = identifier
                     self.completeConversationResponse(
                         requestID: requestID,
@@ -1423,6 +1434,9 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
             do {
                 try await self.reminderManager.removeReminder(identifier: identifier)
                 await MainActor.run {
+                    guard self.isCurrentConversationRequest(requestID) else {
+                        return
+                    }
                     self.lastReminderIdentifier = nil
                     self.completeConversationResponse(
                         requestID: requestID,
@@ -1509,9 +1523,7 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
     }
 
     private func completeConversationResponse(requestID: Int, userMessage: String, response: String) {
-        guard interactionMode == .conversation,
-              chatVisibility == .open,
-              conversationRequestID == requestID else {
+        guard isCurrentConversationRequest(requestID) else {
             return
         }
 
@@ -1527,6 +1539,12 @@ private final class OverlayController: NSObject, NSTextViewDelegate {
         inputPanel.statsLabel.stringValue = "Conversation"
         updateTextEditability()
         window?.makeFirstResponder(inputPanel.textView)
+    }
+
+    private func isCurrentConversationRequest(_ requestID: Int) -> Bool {
+        interactionMode == .conversation
+            && chatVisibility == .open
+            && conversationRequestID == requestID
     }
 
     private func cancelPendingConversation() {

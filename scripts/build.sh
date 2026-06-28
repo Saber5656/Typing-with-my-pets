@@ -57,6 +57,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <false/>
   <key>NSRemindersUsageDescription</key>
   <string>Typing With My Pets uses Reminders only when you explicitly ask the pet to create a reminder.</string>
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>Typing With My Pets uses Reminders only when you explicitly ask the pet to create a reminder.</string>
 </dict>
 </plist>
 PLIST

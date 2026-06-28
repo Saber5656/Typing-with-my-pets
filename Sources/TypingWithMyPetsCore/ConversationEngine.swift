@@ -123,14 +123,7 @@ public enum ConversationPolicy {
             return .codexHandoff
         }
 
-        if containsAny(input, [
-            "リマインド",
-            "リマインダー",
-            "アラーム",
-            "通知して",
-            "予定を作",
-            "覚えておいて"
-        ]) {
+        if ReminderParser.isActionRequest(input) {
             return .reminder
         }
 
@@ -181,7 +174,49 @@ public enum ReminderParser {
             return false
         }
 
-        return containsAny(input, ["取り消し", "取り消して"])
+        if [
+            "取り消して",
+            "取り消し",
+            "リマインダーを取り消して",
+            "直前のリマインダーを取り消して",
+            "最後のリマインダーを取り消して",
+            "さっきのリマインダーを取り消して",
+            "undo"
+        ].contains(input) {
+            return true
+        }
+
+        return matches(
+            input,
+            pattern: #"^(直前|最後|さっき)の?リマインダーを?取り消して$"#
+        )
+    }
+
+    public static func isActionRequest(_ rawInput: String) -> Bool {
+        let input = normalized(rawInput)
+        guard !input.isEmpty else {
+            return false
+        }
+        if containsAny(input, ["教えて", "方法", "違い", "とは", "?", "？"]) {
+            return false
+        }
+
+        return containsAny(input, [
+            "リマインドして",
+            "リマインダーを作",
+            "リマインダー作",
+            "通知して",
+            "通知を設定",
+            "通知を作",
+            "通知を出",
+            "通知を送",
+            "予定を作",
+            "覚えておいて",
+            "知らせて",
+            "アラームをかけ",
+            "アラームを設定",
+            "alarm"
+        ])
     }
 
     public static func parse(
@@ -194,11 +229,27 @@ public enum ReminderParser {
             return .notReminder
         }
 
+        guard isActionRequest(input) else {
+            return .notReminder
+        }
+
         if containsAny(input, ["アラーム", "alarm"]) {
             return .clockAlarmUnsupported("Clockのアラームはまだ作れないよ。リマインダーなら日付と時刻つきで作れるよ。")
         }
 
-        guard containsAny(input, ["リマインド", "リマインダー", "通知して", "覚えておいて"]) else {
+        guard containsAny(input, [
+            "リマインド",
+            "リマインダーを作",
+            "リマインダー作",
+            "通知して",
+            "通知を設定",
+            "通知を作",
+            "通知を出",
+            "通知を送",
+            "覚えておいて",
+            "知らせて",
+            "予定を作"
+        ]) else {
             return .notReminder
         }
 
@@ -305,7 +356,7 @@ public enum ReminderParser {
            let year = Int(fullDate[0]),
            let month = Int(fullDate[1]),
            let day = Int(fullDate[2]) {
-            return calendar.date(from: DateComponents(year: year, month: month, day: day))
+            return validDate(year: year, month: month, day: day, calendar: calendar)
         }
 
         if let monthDay = components(
@@ -316,10 +367,10 @@ public enum ReminderParser {
            let month = Int(monthDay[0]),
            let day = Int(monthDay[1]) {
             var year = calendar.component(.year, from: now)
-            var date = calendar.date(from: DateComponents(year: year, month: month, day: day))
+            var date = validDate(year: year, month: month, day: day, calendar: calendar)
             if let candidate = date, candidate < today {
                 year += 1
-                date = calendar.date(from: DateComponents(year: year, month: month, day: day))
+                date = validDate(year: year, month: month, day: day, calendar: calendar)
             }
             return date
         }
@@ -348,11 +399,11 @@ public enum ReminderParser {
 
         if let time = components(
             in: input,
-            pattern: #"(午前|午後)?\s*(\d{1,2})\s*時(?:\s*([0-5]?\d)\s*分)?"#,
+            pattern: #"(午前|午後|朝|夕方|夜)?\s*(\d{1,2})\s*時(?:\s*([0-5]?\d)\s*分)?"#,
             captureCount: 3
         ),
            var hour = Int(time[1]) {
-            let marker = time[0]
+            let marker = amPMMarker(in: time[0].isEmpty ? input : time[0])
             if marker == "午後", hour < 12 {
                 hour += 12
             } else if marker == "午前", hour == 12 {
@@ -368,12 +419,24 @@ public enum ReminderParser {
     }
 
     private static func hasAmbiguousBareHour(in input: String) -> Bool {
-        guard let time = components(
+        guard amPMMarker(in: input) == nil else {
+            return false
+        }
+
+        if let colonTime = components(
             in: input,
-            pattern: #"(午前|午後)?\s*(\d{1,2})\s*時(?:\s*([0-5]?\d)\s*分)?"#,
+            pattern: #"(^|[^0-9])(\d{1,2})[:：]([0-5][0-9])"#,
             captureCount: 3
         ),
-              time[0].isEmpty,
+           let hour = Int(colonTime[1]) {
+            return (1...12).contains(hour)
+        }
+
+        guard let time = components(
+            in: input,
+            pattern: #"(午前|午後|朝|夕方|夜)?\s*(\d{1,2})\s*時(?:\s*([0-5]?\d)\s*分)?"#,
+            captureCount: 3
+        ),
               let hour = Int(time[1]) else {
             return false
         }
@@ -397,14 +460,15 @@ public enum ReminderParser {
             #"リマインドして"#,
             #"リマインダー"#,
             #"通知して"#,
+            #"通知を(設定|作|出|送)(して|する|って)?"#,
             #"覚えておいて"#,
             #"明後日|あさって|明日|あした|あす|今日|本日"#,
             #"\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?"#,
             #"\d{4}[/-]\d{1,2}[/-]\d{1,2}"#,
             #"\d{1,2}\s*月\s*\d{1,2}\s*日"#,
-            #"\d{1,2}[:：][0-5][0-9]"#,
-            #"(午前|午後)?\s*\d{1,2}\s*時(?:\s*[0-5]?\d\s*分)?"#,
-            #"までに|ください|お願い|して|する|を|に|で"#
+            #"(午前|午後|朝|夕方|夜)?\s*\d{1,2}[:：][0-5][0-9]"#,
+            #"(午前|午後|朝|夕方|夜)?\s*\d{1,2}\s*時(?:\s*[0-5]?\d\s*分)?"#,
+            #"までに|ください|お願い"#
         ].forEach { pattern in
             title = title.replacingOccurrences(
                 of: pattern,
@@ -418,7 +482,27 @@ public enum ReminderParser {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return compact.isEmpty ? "リマインダー" : compact
+        let cleaned = compact
+            .replacingOccurrences(of: #"^(に|で|を)\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s*(に|で|を)$"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return cleaned.isEmpty ? "リマインダー" : cleaned
+    }
+
+    private static func validDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Date? {
+        guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day)) else {
+            return nil
+        }
+
+        let resolved = calendar.dateComponents([.year, .month, .day], from: date)
+        guard resolved.year == year,
+              resolved.month == month,
+              resolved.day == day else {
+            return nil
+        }
+
+        return calendar.startOfDay(for: date)
     }
 
     private static func components(in input: String, pattern: String, captureCount: Int) -> [String]? {
@@ -447,6 +531,14 @@ public enum ReminderParser {
 
     private static func containsAny(_ input: String, _ patterns: [String]) -> Bool {
         patterns.contains { input.contains($0) }
+    }
+
+    private static func matches(_ input: String, pattern: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return false
+        }
+        let range = NSRange(input.startIndex..<input.endIndex, in: input)
+        return regex.firstMatch(in: input, range: range) != nil
     }
 }
 
